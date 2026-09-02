@@ -12,7 +12,8 @@ bind_device:
 
     offer:
       # The command_code / domain_idx pairs for the binding offer.
-      example: '{"30C9": "00"}'
+      # A list form is also accepted when a code must occur more than once.
+      example: '[{"index": "00", "code": "31E0"}, {"index": "01", "code": "31E0"}, {"index": "00", "code": "1298"}]'
       required: true
 
     confirm:

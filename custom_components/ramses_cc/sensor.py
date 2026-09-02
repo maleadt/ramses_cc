@@ -96,10 +96,13 @@ from ramses_rf.systems.tcs import System
 from ramses_rf.systems.zones import ZoneBase
 from ramses_tx.const import Code, Verb
 from ramses_tx.dtos import CommandDTO
+from ramses_tx.typing import DeviceIdT
 
 from .const import (
     ATTR_SETPOINT,
     ATTR_WORKING_SCHEMA,
+    CONF_SCHEMA,
+    SZ_TR_BOUND,
     UnitOfVolumeFlowRate,
 )
 from .coordinator import RamsesCoordinator
@@ -240,6 +243,37 @@ class RamsesSensor(RamsesEntity, SensorEntity):
 
         # setter will raise an exception if device is not faked
         device.co2_level = co2_level  # would accept None
+
+    async def async_put_ventilation_demand(
+        self, ventilation_demand: float
+    ) -> None:
+        """Send a ventilation demand from a faked CO2 sensor.
+
+        :param ventilation_demand: The demand as a percentage from 0 to 100.
+        :type ventilation_demand: float
+        :raises TypeError: If the entity is not a compatible CO2 sensor.
+        :raises ValueError: If the sensor has no bound Orcon fan.
+        """
+        assert self.device_class == SensorDeviceClass.CO2
+        assert self.native_unit_of_measurement == UnitOfRatio.PARTS_PER_MILLION
+
+        device = self._device
+        if not isinstance(device, HvacCarbonDioxideSensor):
+            raise TypeError(f"Cannot set ventilation demand on {device}")
+
+        schema = self.coordinator.entry.options.get(CONF_SCHEMA, {})
+        device_schema = schema.get(device.id, {})
+        fan_id = (
+            device_schema.get(SZ_TR_BOUND)
+            if isinstance(device_schema, dict)
+            else None
+        )
+        if not isinstance(fan_id, str) or not fan_id.startswith("32:"):
+            raise ValueError(f"CO2 sensor {device.id} has no bound Orcon fan")
+
+        await device.set_ventilation_demand(
+            DeviceIdT(fan_id), ventilation_demand / 100.0
+        )
 
     async def async_put_dhw_temp(self, temperature: float) -> None:
         """Cast the DHW cylinder temperature (if faked).
